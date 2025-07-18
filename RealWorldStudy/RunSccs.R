@@ -87,6 +87,8 @@ estimates <- do.call(rbind, estimates)
 # Create likelihood approximations -----------------------------------------------------------------
 source("RealWorldStudy/DatabaseDetails.R")
 likelihoodData <- list()
+times <- list()
+# i = 1; j = 1
 for (i in 1:nrow(databases)) {
   database <- databases[i, ]
   message(sprintf("Building approximations for %s", database$name))
@@ -111,21 +113,47 @@ for (i in 1:nrow(databases)) {
       cyclopsFit <- Cyclops::fitCyclopsModel(cyclopsData, control = Cyclops::createControl(threads = 8))
       
       # Normal:
-      approximation <- EvidenceSynthesis::approximateLikelihood(cyclopsFit, parameter = "1000", approximation = "normal")
+      normalTime <- system.time(
+        approximation <- EvidenceSynthesis::approximateLikelihood(cyclopsFit, parameter = "1000", approximation = "normal")
+      )
       likelihoodData[["normal"]][[paste("outcome", fileRef$outcomeId[j], sep = "_")]][[database$name]] <- approximation
       
       # Grid:
-      approximation <- EvidenceSynthesis::approximateLikelihood(cyclopsFit, parameter = "1000", approximation = "grid")
+      gridTime <- system.time(
+        approximation <- EvidenceSynthesis::approximateLikelihood(cyclopsFit, parameter = "1000", approximation = "grid")
+      )
       likelihoodData[["grid"]][[paste("outcome", fileRef$outcomeId[j], sep = "_")]][[database$name]] <- approximation
-
+      
       # Grid with gradients:
-      approximation <- EvidenceSynthesis::approximateLikelihood(cyclopsFit, parameter = "1000", approximation = "grid with gradients")
+      hermiteTime <- system.time(
+        approximation <- EvidenceSynthesis::approximateLikelihood(cyclopsFit, parameter = "1000", approximation = "grid with gradients")
+      )
       likelihoodData[["hermite"]][[paste("outcome", fileRef$outcomeId[j], sep = "_")]][[database$name]] <- approximation
       
       # Custom:
-      approximation <- EvidenceSynthesis::approximateLikelihood(cyclopsFit, parameter = "1000", approximation = "custom")
+      customTime <- system.time(
+        approximation <- EvidenceSynthesis::approximateLikelihood(cyclopsFit, parameter = "1000", approximation = "custom")
+      )
       likelihoodData[["custom"]][[paste("outcome", fileRef$outcomeId[j], sep = "_")]][[database$name]] <- approximation
+      
+      getTime <- function(time) {
+        time["user.self"] + time["sys.self"]
+      }
+      nPatients <- sccsIntervalData$outcomes |>
+        distinct(stratumId) |>
+        count() |>
+        pull()
+      
+      times[[length(times) + 1]] <- tibble(
+        database = !!database,
+        type = c("Normal", "Grid", "Hermite interpolation", "Custom"),
+        nPatients = nPatients,
+        time = c(getTime(normalTime), getTime(gridTime), getTime(hermiteTime), getTime(customTime))
+      )
     }
   }
 }
 saveRDS(likelihoodData, file.path(rootFolder, "likelihoodData.rds"))
+
+times <- bind_rows(times)
+saveRDS(times, "RealWorldStudy/times.rds")
