@@ -28,11 +28,17 @@ plotViolin <- function(group = "Fixed-effects",
   if (group == "Fixed-effects") {
     data <- readRDS("inst/shinyApps/ResultsExplorer/data/fixedFx.rds")
     data$type[data$type == "Traditional fixed-effects"] <- "Normal fixed-effects"
-  } else {
+  } else if (group == "Random-effects") {
     data <- readRDS("inst/shinyApps/ResultsExplorer/data/randomFx.rds")
     data <- data[!grepl("Tau", data$metric), ]
-    data <- data[grepl(paste(group, collapse = "|"), data$type, ignore.case = TRUE), ]
+  } else if (group == "Cohort method random-effects") {
+    data <- readRDS("inst/shinyApps/ResultsExplorer/data/cmRandomFx.rds")
+    data <- data[!grepl("Tau", data$metric), ]
+    group <- "Random-effects"
+  } else {
+    stop("Unknown group: ", group)
   }
+  data <- data[grepl(group, data$type, ignore.case = TRUE), ]
   data <- data[grepl(paste(types, collapse = "|"), data$type), ]
   data$type <- gsub(paste0(" ", group), "", data$type, ignore.case = TRUE)
   
@@ -47,7 +53,6 @@ plotViolin <- function(group = "Fixed-effects",
   ref <- getReferenceValues(vizData$metric)
   vizData <- vizData[vizData$metric %in% metrics,]
   ref <- ref[ref$metric %in% metrics,]
-  # vizData$type <- gsub(" ", "\n", vizData$type)
   
   if (theme == "dark") {
     bgColor <- "black"
@@ -55,23 +60,24 @@ plotViolin <- function(group = "Fixed-effects",
     gridColor <- "#444444"
     refColor <- "#AAAAAA"
     alpha <- 0.6
+    plot <- ggplot2::ggplot(vizData, ggplot2::aes(x = factor(parameterValue), y = value, fill = type, color = type))
   } else {
     bgColor <- "white"
     textColor <- "black"
     gridColor <- "#DDDDDD"
     refColor <- "black"
     alpha <- 0.4
+    plot <- ggplot2::ggplot(vizData, ggplot2::aes(x = factor(parameterValue), y = value, fill = type))
   }
   
-  plot <- ggplot2::ggplot(vizData, ggplot2::aes(x = factor(parameterValue), y = value, fill = type, color = type)) +
-    ggplot2::geom_violin(position = ggplot2::position_dodge(0.9), scale = "width", alpha = alpha) 
+  plot <- plot + ggplot2::geom_violin(position = ggplot2::position_dodge(0.9), scale = "width", alpha = alpha) 
   if (nrow(ref) > 0) {
     plot <- plot + ggplot2::geom_hline(ggplot2::aes(yintercept = value), data = ref, linetype = "dashed", color = refColor)
   }
   plot <- plot +
     ggplot2::scale_x_discrete(xLabel) +
-    ggplot2::scale_fill_manual(values = c("#FBC511", "#EB6622", "#69AED5", "#11A08A", "#336B91")) +
-    ggplot2::scale_color_manual(values = c("#FBC511", "#EB6622", "#69AED5", "#11A08A", "#336B91")) +
+    ggplot2::scale_fill_manual(values = c("#FBC511", "#69AED5", "#EB6622", "#11A08A", "#336B91")) +
+    ggplot2::scale_color_manual(values = c("#FBC511", "#69AED5", "#EB6622", "#11A08A", "#336B91")) +
     ggplot2::facet_grid(metric~., scales = "free", switch = "both") +
     ggplot2::theme(legend.position = "top",
                    legend.title = ggplot2::element_blank(),
@@ -121,12 +127,18 @@ plot <- plotViolin(group = "Fixed-effects",
                    theme = "light")
 ggplot2::ggsave("Simulation/FixedFxLight.png", plot, width = 6, height = 6, dpi = 300)
 
-
 plot <- plotViolin(group = "Random-effects", 
                    theme = "light",
                    xParameter = "nSites",
                    xLabel = "Number of sites")
 ggplot2::ggsave("Simulation/RandomFxLight.png", plot, width = 6, height = 6, dpi = 300)
+
+plot <- plotViolin(group = "Cohort method random-effects", 
+                   theme = "light",
+                   xParameter = "nSites",
+                   xLabel = "Number of sites")
+ggplot2::ggsave("Simulation/CmRandomFxLight.png", plot, width = 6, height = 6, dpi = 300)
+
 
 # Plot example of Hermite interpolation, grid with gradients ---------------------------------------
 library(survival)
@@ -155,15 +167,29 @@ vizData <- vizData |>
 approximation <- approximation |>
   mutate(value = value - normalizationFactor) 
 
-delta <- 0.1
+# delta <- 0.1
+# gradientLineData <- approximation |>
+#   transmute(xMin = point - delta,
+#             xMax = point + delta,
+#             yMin = value - derivative * delta,
+#             yMax = value + derivative * delta)
+
+segmentLength <- 0.4
 gradientLineData <- approximation |>
-  transmute(xMin = point - delta,
-            xMax = point + delta,
-            yMin = value - derivative * delta,
-            yMax = value + derivative * delta)
+  transmute(
+    # Calculate delta based on desired segment length and derivative
+    delta = segmentLength / (2 * sqrt(1 + derivative^2)),
+    xMin = point - delta,
+    xMax = point + delta,
+    yMin = value - derivative * delta,
+    yMax = value + derivative * delta
+  )
+
 breaks <- c(0.1, 0.25, 0.5, 1, 2, 4, 8)
 xLimits <- c(min(c(gradientLineData$xMin, gradientLineData$xMax)), max(c(gradientLineData$xMin, gradientLineData$xMax)))
-yLimits <- c(min(c(gradientLineData$yMin, gradientLineData$yMax)) - 0.01, 0.01)
+yLimits <- c(min(c(gradientLineData$yMin, gradientLineData$yMax)), max(c(gradientLineData$yMin, gradientLineData$yMax)))
+
+# For presentation: separate plots -----------------------------------------------------------------
 ggplot(vizData, aes(x = x, y = trueLl)) +
   geom_line(alpha = 0.5, size = 1) +
   scale_x_continuous("Incidence Rate Ratio", breaks = log(breaks), labels = breaks, limits = xLimits) +
@@ -217,3 +243,57 @@ ggplot(vizData, aes(x = x, y = trueLl)) +
         strip.background = element_blank())
 
 ggsave("Simulation/gridWithGradients3.png", width = 6, height = 3, dpi = 300)
+
+# For paper: one plot ------------------------------------------------------------------------------
+trueLlAll <- bind_rows(
+  vizData |>
+    mutate(y = trueLl, 
+           label = "True likelihood"),
+  vizData |>
+    mutate(y = trueLl, 
+           label = "Grid with gradients"),
+  vizData |>
+    mutate(y = trueLl, 
+           label = "Hermite interpolation"),
+)
+
+gradientLineDataAll <- gradientLineData |>
+    mutate(label = "Grid with gradients")
+
+pointsAll <- approximation |>
+  mutate(label = "Grid with gradients")
+
+hermiteInterpolationAll <- vizData |>
+  mutate(y = y, 
+         label = "Hermite interpolation")
+
+setFactor <- function(data) {
+  data$label <- factor(data$label, levels = c("True likelihood", "Grid with gradients", "Hermite interpolation"))
+  return(data)
+}
+trueLlAll <- setFactor(trueLlAll)
+gradientLineDataAll <- setFactor(gradientLineDataAll)
+pointsAll <- setFactor(pointsAll)
+hermiteInterpolationAll <- setFactor(hermiteInterpolationAll)
+
+ggplot(trueLlAll, aes(x = x, y = trueLl)) +
+  geom_line(alpha = 0.5, size = 0.5) +
+  geom_point(aes(x = point, y = value), shape = 16, size = 1.75, color = "#EB6622", data = pointsAll)+
+  geom_segment(aes(x = xMin, y = yMin, xend = xMax, yend = yMax), size = 1.25, color = "#EB6622", alpha = 0.7, data = gradientLineDataAll) +
+  geom_line(, color = "#EB6622", size = 1.25, alpha = 0.6, data = hermiteInterpolationAll) +
+  scale_x_continuous("Incidence Rate Ratio", breaks = log(breaks), labels = breaks, limits = xLimits) +
+  scale_y_continuous("Log likelihood", limits = yLimits) +
+  facet_grid(~label) +
+  theme(legend.position = "top",
+        legend.title = element_blank(),
+        legend.key = element_blank(),
+        legend.background = element_blank(),
+        panel.grid.major = element_line(color = "#DDDDDD"), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        panel.border = element_rect(fill = NA), 
+        strip.placement = "outside",
+        strip.background = element_blank())
+ggsave("Simulation/gridWithGradientsAll.png", width = 6, height = 2, dpi = 300)
+
+

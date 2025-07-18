@@ -4,7 +4,8 @@ library(dplyr)
 source("RealWorldStudy/DatabaseDetails.R")
 
 # Plot real-world example likelihood data ----------------------------------------------------------
-likelihoodData <- readRDS( file.path(rootFolder, "likelihoodData.rds"))
+# likelihoodData <- readRDS( file.path(rootFolder, "likelihoodData.rds"))
+likelihoodData <- readRDS("/Users/schuemie/Data/likelihoodData.rds")
 
 approximations <- names(likelihoodData)
 vizData <- list()
@@ -77,7 +78,7 @@ for (approximation in approximations) {
   }
 }
 vizData <- bind_rows(vizData)
-vizData$type <- factor(vizData$type, levels = c("Likelihood", "Normal", "Hermite interpolation", "Custom"))
+vizData$type <- factor(vizData$type, levels = c("Likelihood","Custom", "Hermite interpolation", "Normal"))
 countData <- bind_rows(countData)
 countLabels <- countData %>%
   mutate(x = 1,
@@ -91,9 +92,10 @@ plot <- ggplot(vizData, aes(x = x, y = y)) +
   geom_line(aes(group = type, color = type, linetype = type, size = type), alpha = 0.9) +
   geom_rect(xmin = log(0.25) + 0.1, xmax = log(4) - 0.1, ymin = -6, ymax = -3.2, fill = rgb(1, 1, 1, 0.8), color = "black", alpha = 0.8, data = countLabels) +
   geom_text(x = log(0.25) + 0.2, y = -3.4, aes(label = label), hjust = "left", vjust = "top", size = 3, lineheight = 0.9, data = countLabels) +
-  scale_size_manual(values = c(1, 2, 2, 2, 2, 2, 2) * 0.5) +
+  # scale_size_manual(values = c(1, 2,4, 2,4, 2,4) * 0.5) +
+  scale_size_manual(values = c(0.5, 1.25, 1.25, 1.25)) +
   scale_linetype_manual(values = c("solid", "dashed", "dotdash", "longdash")) +
-  scale_color_manual(values = c("#000000", RColorBrewer::brewer.pal(4, "Set2"))) +
+  scale_color_manual(values = c("#000000", "#FBC511", "#EB6622", "#11A08A")) +
   scale_y_continuous("Log-likelihood", limits = c(-6.2, 0.2), expand = c(0,0)) +
   scale_x_continuous("Incidence Rate Ratio", limits = c(log(0.1), log(10)), breaks = log(breaks), labels = breaks, expand = c(0,0)) +
   facet_grid(database~outcome) +
@@ -160,159 +162,4 @@ plot <- ggplot(subset, aes(x = rr, y = approximation , xmin = lb, xmax = ub)) +
         plot.margin = grid::unit(c(0,0,0.1,0), "lines"))
 plot
 
-# Plot Hermite interpolation with gradients ------------------------
-likelihoodData <- readRDS( file.path(rootFolder, "likelihoodData.rds"))
 
-
-
-
-
-
-getReferenceValues <- function(metrics) {
-  ref <- data.frame()
-  if ("Bias" %in% metrics) {
-    ref <- rbind(ref, data.frame(value = 0,
-                                 metric = "Bias")) 
-  }
-  if ("Coverage" %in% metrics) {
-    ref <- rbind(ref, data.frame(value = 0.95,
-                                 metric = "Coverage")) 
-  }
-  if ("MSE" %in% metrics) {
-    ref <- rbind(ref, data.frame(value = 0,
-                                 metric = "MSE")) 
-  }
-  if ("Non-Estimable" %in% metrics) {
-    ref <- rbind(ref, data.frame(value = 0,
-                                 metric = "Non-Estimable")) 
-  }
-  return(ref)
-}
-
-
-#' @export
-plotViolin <- function(group = "Fixed-effects", 
-                       types = c("Traditional", "Custom", "Normal", "Skew normal", "Grid"),
-                       xParameter = NULL,
-                       xLabel = NULL) {
-  if (group == "Fixed-effects") {
-    data <- readRDS("../inst/shinyApps/ResultsExplorer/data/fixedFx.rds")
-    data$type[data$type == "Traditional fixed-effects"] <- "Normal fixed-effects"
-    if (is.null(xParameter)) {
-      xParameter <- "treatedFraction"
-    } 
-    if (is.null(xLabel)) {
-      xLabel <- "Treated Fraction"
-    }
-  } else {
-    data <- readRDS("../inst/shinyApps/ResultsExplorer/data/randomFx.rds")
-    data <- data[!grepl("Tau", data$metric), ]
-    data <- data[grepl(paste(group, collapse = "|"), data$type, ignore.case = TRUE), ]
-    if (is.null(xParameter)) {
-      xParameter <- "nSites"
-    } 
-    if (is.null(xLabel)) {
-      xLabel <- "Number of Sites"
-    }    
-  }
-  data <- data[grepl(paste(types, collapse = "|"), data$type), ]
-  data$type <- gsub(paste0(" ", group), "", data$type, ignore.case = TRUE)
-  
-  # Pivot data:
-  pivotData <- function(simParam, data) {
-    data$parameterValue <- data[, simParam]
-    data$simParam <- simParam
-    data[simParam] <- NULL
-    return(data)
-  }
-  vizData <- pivotData(xParameter, data)
-  ref <- getReferenceValues(vizData$metric)
-  # vizData$type <- gsub(" ", "\n", vizData$type)
-  
-  plot <- ggplot(vizData, aes(x = factor(parameterValue), y = value, fill = type)) 
-  if (nrow(ref) > 0) {
-    plot <- plot + geom_hline(aes(yintercept = value), data = ref, linetype = "dashed")
-  }
-  plot <- plot + geom_violin(position = position_dodge(0.9), scale = "width", alpha = 0.4) +
-    scale_x_discrete(xLabel) +
-    scale_fill_manual(values = RColorBrewer::brewer.pal(5, "Set2")) +
-    facet_grid(metric~., scales = "free", switch = "both") +
-    theme(legend.position = "top",
-          legend.title = element_blank(),
-          legend.key = element_blank(),
-          panel.grid.major.y = element_line(color = "#DDDDDD"), 
-          panel.grid.major.x = element_blank(),
-          panel.background = element_blank(),
-          axis.title.y = element_blank(),
-          panel.border = element_rect(fill = NA), 
-          strip.placement = "outside",
-          strip.background = element_blank())
-  # plot
-  return(plot)
-}
-
-#' @export
-createCustomVsGridTable <- function() {
-  
-  doTest <- function(group) {
-    metric <- group$metric[1]
-    group$metric <- NULL
-    group <- as.data.frame(tidyr::pivot_wider(group, names_from = "type", values_from = "value"))
-    customCol <- which(grepl("Custom", colnames(group)))
-    gridCol <- which(grepl("Grid", colnames(group)))
-    test <- t.test(group[, customCol], group[, gridCol], paired = TRUE, alternative = "two.sided")
-    return(data.frame(metric = metric,
-                      meanCustom = mean(group[, customCol]),
-                      meanGrid =  mean(group[, gridCol]),
-                      meanDifference = test$estimate,
-                      p = test$p.value,
-                      row.names = NULL))
-  }
-  
-  formatTable <- function(results) {
-    results$meanCustom <- formatC(results$meanCustom, digits = 3, format = "f")
-    results$meanGrid <- formatC(results$meanGrid, digits = 3, format = "f")
-    results$meanDifference <- formatC(results$meanDifference, digits = 3, format = "f")
-    results$p <- formatC(results$p, digits = 3, format = "f", )
-    results$p[grepl("NaN", results$p)] <- ""
-    results$p[grepl("0.000", results$p)] <- "$<$0.001"
-    results <- results[order(results$metric), ]
-    colnames(results) <- c("Metric", "Mean (Custom)", "Mean (Grid)", "Mean diff.", "p")
-    rownames(results) <- NULL
-    return(results)
-  }
-  
-  data <- readRDS("../inst/shinyApps/ResultsExplorer/data/fixedFx.rds")
-  # data <- readRDS("inst/shinyApps/ResultsExplorer/data/fixedFx.rds")
-  groups <- split(data, data$metric)
-  resultsFixed <- lapply(groups, doTest)
-  resultsFixed <- do.call("rbind", resultsFixed) 
-  
-  data <- readRDS("../inst/shinyApps/ResultsExplorer/data/randomFx.rds")
-  # data <- readRDS("inst/shinyApps/ResultsExplorer/data/randomFx.rds")
-  data <- data[!grepl("Tau", data$metric), ]
-  data <- data[grepl("Custom|Grid", data$type), ]
-  data <- data[grepl("random-effects", data$type), ]
-  groups <- split(data, data$metric)
-  resultsRandom <- lapply(groups, doTest)
-  resultsRandom <- do.call("rbind", resultsRandom) 
-  
-  resultsFixed <- formatTable(resultsFixed)
-  resultsRandom <- formatTable(resultsRandom)
-  
-  
-  resultsFixed$Type <- "Fixed-effects"
-  resultsRandom$Type <- "Random-effects"
-  
-  results <- rbind(resultsFixed, resultsRandom)
-  results <- cbind(data.frame(Type = results[, ncol(results), ]), results[, -ncol(results)])
-  return(results)
-  # results <- cbind(resultsFixed, resultsRandom[, -1])
-  # 
-  # return(kableExtra::add_header_above(
-  #     knitr::kable(results, 
-  #                  caption = caption, 
-  #                  col.names = kableExtra::linebreak(colnames(results)),
-  #                  align = c("l", rep("r", 8))),
-  #     c("", "Fixed-effects" = 4, "Random-effects" = 4)))
-}
