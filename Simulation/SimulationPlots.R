@@ -66,7 +66,7 @@ plotViolin <- function(group = "Fixed-effects",
     textColor <- "black"
     gridColor <- "#DDDDDD"
     refColor <- "black"
-    alpha <- 0.4
+    alpha <- 0.6
     plot <- ggplot2::ggplot(vizData, ggplot2::aes(x = factor(parameterValue), y = value, fill = type))
   }
   
@@ -103,7 +103,7 @@ plot <- plotViolin(group = "Fixed-effects",
                    theme = "dark",
                    metrics = c("Bias", "Coverage"))
 ggplot2::ggsave("Simulation/FixedFxDark.png", plot, width = 6, height = 3, dpi = 300)
-                   
+
 
 plot <- plotViolin(group = "Random-effects", 
                    theme = "dark",
@@ -195,15 +195,15 @@ ggplot(vizData, aes(x = x, y = trueLl)) +
   scale_x_continuous("Incidence Rate Ratio", breaks = log(breaks), labels = breaks, limits = xLimits) +
   scale_y_continuous("Log likelihood", limits = yLimits) +
   theme(legend.position = "top",
-                 legend.title = element_blank(),
-                 legend.key = element_blank(),
-                 legend.background = element_blank(),
-                 panel.grid.major = element_line(color = "#DDDDDD"), 
-                 panel.grid.minor = element_blank(),
-                 panel.background = element_blank(),
-                 panel.border = element_rect(fill = NA), 
-                 strip.placement = "outside",
-                 strip.background = element_blank())
+        legend.title = element_blank(),
+        legend.key = element_blank(),
+        legend.background = element_blank(),
+        panel.grid.major = element_line(color = "#DDDDDD"), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        panel.border = element_rect(fill = NA), 
+        strip.placement = "outside",
+        strip.background = element_blank())
 ggsave("Simulation/gridWithGradients1.png", width = 6, height = 3, dpi = 300)
 
 ggplot(vizData, aes(x = x, y = trueLl)) +
@@ -258,7 +258,7 @@ trueLlAll <- bind_rows(
 )
 
 gradientLineDataAll <- gradientLineData |>
-    mutate(label = "Grid with gradients")
+  mutate(label = "Grid with gradients")
 
 pointsAll <- approximation |>
   mutate(label = "Grid with gradients")
@@ -278,8 +278,8 @@ hermiteInterpolationAll <- setFactor(hermiteInterpolationAll)
 
 ggplot(trueLlAll, aes(x = x, y = trueLl)) +
   geom_line(alpha = 0.5, size = 0.5) +
-  geom_point(aes(x = point, y = value), shape = 16, size = 1.75, color = "#EB6622", data = pointsAll)+
-  geom_segment(aes(x = xMin, y = yMin, xend = xMax, yend = yMax), size = 1.25, color = "#EB6622", alpha = 0.7, data = gradientLineDataAll) +
+  geom_point(aes(x = point, y = value), shape = 16, size = 1.75, color = "#EB6622", alpha = 0.6, data = pointsAll)+
+  geom_segment(aes(x = xMin, y = yMin, xend = xMax, yend = yMax), size = 1.25, color = "#EB6622", alpha = 0.6, data = gradientLineDataAll) +
   geom_line(, color = "#EB6622", size = 1.25, alpha = 0.6, data = hermiteInterpolationAll) +
   scale_x_continuous("Incidence Rate Ratio", breaks = log(breaks), labels = breaks, limits = xLimits) +
   scale_y_continuous("Log likelihood", limits = yLimits) +
@@ -296,4 +296,39 @@ ggplot(trueLlAll, aes(x = x, y = trueLl)) +
         strip.background = element_blank())
 ggsave("Simulation/gridWithGradientsAll.png", width = 6, height = 2, dpi = 300)
 
+# Time to compute ----------------------------------------------------------------------------------
+data <- readRDS("Simulation/fixedFxSimulationResults.rds")
 
+vizData <- data |>
+  mutate(
+    label = case_when(
+      type == "Traditional fixed-effects" ~ "Normal",
+      type == "Grid fixed-effects" ~ "Grid",
+      type == "Custom fixed-effects" ~ "Custom",
+      type == "Hermite interpolation fixed-effects" ~ "Hermite interpolation"
+    ),
+    panel = sprintf("Max patients = %s", formatC(maxN, format="f", digits=0, big.mark=","))
+  )
+
+breaks = c(0.01, 0.10, 1, 10, 100)
+ggplot(vizData, aes(x = label, y = time, fill = label)) +
+  geom_boxplot(alpha = 0.6) +
+  scale_y_log10("Time (seconds)", breaks = breaks, labels = breaks) +
+  scale_fill_manual(values = c("#FBC511", "#69AED5", "#EB6622", "#11A08A", "#336B91")) +
+  facet_grid(~panel) +
+  theme(legend.position = "top",
+        legend.title = element_blank(),
+        legend.key = element_blank(),
+        legend.background = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.major = element_line(color = "#DDDDDD"), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        panel.border = element_rect(fill = NA), 
+        strip.placement = "outside",
+        strip.background = element_blank())
+ggsave("Simulation/computeTime.png", width = 6, height = 3, dpi = 300)
