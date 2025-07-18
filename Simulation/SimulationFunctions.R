@@ -317,7 +317,11 @@ exportResultsForShiny <- function(results, fileName) {
   results$precisionTau[results$nonEstimable] <- NA
   
   aggregateMetric <- function(metric) {
-    form <- paste(metric, "~ type + atRiskTimeFraction + rateRatio + nSites + maxN + tau")
+    if ("atRiskTimeFraction" %in% colnames(data)) {
+      form <- paste(metric, "~ type + atRiskTimeFraction + rateRatio + nSites + maxN + tau")
+    } else {
+      form <- paste(metric, "~ type + treatedFraction + hazardRatio + nSites + maxN + tau")
+    }
     agg <- aggregate(as.formula(form), data = results, mean)
     colnames(agg)[colnames(agg) == metric] <- "value"
     agg$metric <- metric

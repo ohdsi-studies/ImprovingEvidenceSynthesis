@@ -18,3 +18,10 @@ results <- runSimulationStudy(
   maxCores = 10
 )
 saveRDS(results, "Simulation/cmRandomFxSimulationResults.rds")
+results <- readRDS("Simulation/cmRandomFxSimulationResults.rds")
+exportResultsForShiny(results, "cmRandomFx.rds")
+
+library(dplyr)
+results |>
+  group_by(type, maxN) |>
+  summarise(medianTime = median(time))

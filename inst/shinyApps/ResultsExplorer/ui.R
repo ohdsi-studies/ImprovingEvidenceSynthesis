@@ -68,6 +68,36 @@ shinyUI(
                                           )
                                    )
                                  )
+                        ),
+                        tabPanel("Cohort method random-effects simulations",       
+                                 fluidRow(
+                                   column(3,
+                                          checkboxGroupInput("typeCmRandom", "Meta-analysis algorithm", choices = typesCmRandom, selected = typesRandom[grepl("random", typesCmRandom)]),
+                                          lapply(simParamsCmRandom, createSimParamWidget, results = resultsCmRandom, suffix = "CmRandom"),
+                                          checkboxGroupInput("metricCmRandom", "Metric", choices = metricsCmRandom, selected = metricsCmRandom[!grepl("Tau", metricsCmRandom)])
+                                   ), 
+                                   column(9,
+                                          tabsetPanel(id = "cmRandomEffectsTabsetPanel",
+                                                      type = "pills",
+                                                      tabPanel("Violin plots",
+                                                               plotOutput("mainViolinPlotCmRandom", height = 800),
+                                                               div(align = "center",
+                                                                   radioButtons("simParamCmRandomRadioButton", "", choices = simParamsCmRandom, selected = simParamsCmRandom[1], inline = TRUE)
+                                                               ),
+                                                               uiOutput("mainViolinCaptionCmRandom")
+                                                      ),
+                                                      tabPanel("Scatter plots",
+                                                               uiOutput("hoverInfoPlotCmRandom"),
+                                                               plotOutput("mainPlotCmRandom", height = 800, hover = hoverOpts("plotHoverMainPlotCmRandom", delay = 100, delayType = "debounce")),
+                                                               uiOutput("mainCaptionCmRandom")
+                                                      ),
+                                                      tabPanel("Rankings",
+                                                               plotOutput("rankPlotCmRandom", height = 800),
+                                                               uiOutput("rankCaptionCmRandom")
+                                                      )
+                                          )
+                                   )
+                                 )
                         )
             )
   )

@@ -10,3 +10,8 @@ resultsRandom <- readRDS("data/randomFx.rds")
 typesRandom <- unique(resultsRandom$type)
 metricsRandom <- unique(resultsRandom$metric)
 simParamsRandom <- colnames(resultsRandom)[!(colnames(resultsRandom) %in% c("type", "metric", "value"))]
+
+resultsCmRandom <- readRDS("data/cmRandomFx.rds")
+typesCmRandom <- unique(resultsCmRandom$type)
+metricsCmRandom <- unique(resultsCmRandom$metric)
+simParamsCmRandom <- colnames(resultsCmRandom)[!(colnames(resultsCmRandom) %in% c("type", "metric", "value"))]
