@@ -51,20 +51,27 @@ doSimulation <- function(row, iterations, simulationFolder, analysisType = "sccs
       return(formula)
     }
     # population = populations[[1]]
-    # approximationType = "grid"
+    # approximationType = "pade"
     fitModelInDatabase <- function(population, approximationType) {
       if (nrow(population) == 0) {
         return(NULL)
       }
-      if (analysisType == "sccs") {
-        cyclopsData <- Cyclops::createCyclopsData(getSccsFormula(population), data = population, modelType = "cpr")
-        treatmentVariable <- "a"
+      if (approximationType == "pade") {
+        if (analysisType == "sccs") {
+          stop("Pade not implemented for SCCS")
+        }
+        approximation <- PadeEvidenceSynthesis::approximateLikelihoodUsingPade(population)
       } else {
-        cyclopsData <- Cyclops::createCyclopsData(Surv(time, y) ~ x + strata(stratumId), data = population, modelType = "cox")
-        treatmentVariable <- "x"
+        if (analysisType == "sccs") {
+          cyclopsData <- Cyclops::createCyclopsData(getSccsFormula(population), data = population, modelType = "cpr")
+          treatmentVariable <- "a"
+        } else {
+          cyclopsData <- Cyclops::createCyclopsData(Surv(time, y) ~ x + strata(stratumId), data = population, modelType = "cox")
+          treatmentVariable <- "x"
+        }
+        cyclopsFit <- Cyclops::fitCyclopsModel(cyclopsData)
+        approximation <- EvidenceSynthesis::approximateLikelihood(cyclopsFit, treatmentVariable, approximation = approximationType)
       }
-      cyclopsFit <- Cyclops::fitCyclopsModel(cyclopsData)
-      approximation <- EvidenceSynthesis::approximateLikelihood(cyclopsFit, treatmentVariable, approximation = approximationType)
       return(approximation)
     }
     data <- lapply(populations, fitModelInDatabase, approximationType = approximationType)
@@ -234,11 +241,33 @@ doSimulation <- function(row, iterations, simulationFolder, analysisType = "sccs
                                               tauCi95Ub = estimate$tau95Ub)
       }
       
+      # Pade
+      timePade<- system.time(
+        approxs <- createApproximations(populations, "pade")
+      )
+      estimate <- PadeEvidenceSynthesis::computeFixedEffectMetaAnalysis(approxs)
+      padeFixedFxEstimate <- data.frame(rr = estimate$rr,
+                                        ci95Lb = estimate$lb,
+                                        ci95Ub = estimate$ub,
+                                        logRr = estimate$logRr,
+                                        seLogRr = estimate$seLogRr)
+      if (doRandomEffects) {
+        estimate <- PadeEvidenceSynthesis::computeBayesianMetaAnalysis(approxs)
+        padeRandomFxEstimate <- data.frame(rr = exp(estimate$mu),
+                                           ci95Lb = exp(estimate$mu95Lb),
+                                           ci95Ub = exp(estimate$mu95Ub),
+                                           logRr = estimate$mu,
+                                           tau = estimate$tau,
+                                           tauCi95Lb = estimate$tau95Lb,
+                                           tauCi95Ub = estimate$tau95Ub)
+      }
+      
       result <- rbind(
         eval(maFixedFxEstimate, trueEffectSize, settings$randomEffectSd, timeNormal, "Traditional fixed-effects"),
         eval(gridFixedFxEstimate, trueEffectSize, settings$randomEffectSd, timeGrid, "Grid fixed-effects"),
         eval(customFixedFxEstimate, trueEffectSize, settings$randomEffectSd, timeCustom, "Custom fixed-effects"),
-        eval(hermiteFixedFxEstimate, trueEffectSize, settings$randomEffectSd, timeHermite, "Hermite interpolation fixed-effects")
+        eval(hermiteFixedFxEstimate, trueEffectSize, settings$randomEffectSd, timeHermite, "Hermite interpolation fixed-effects"),
+        eval(padeFixedFxEstimate, trueEffectSize, settings$randomEffectSd, timePade, "Pade fixed-effects")
       )
       if (doRandomEffects) {
         result <- rbind(
@@ -247,7 +276,8 @@ doSimulation <- function(row, iterations, simulationFolder, analysisType = "sccs
           eval(normalRandomFxEstimate, trueEffectSize, settings$randomEffectSd, timeNormal, "Normal random-effects"),
           eval(gridRandomFxEstimate, trueEffectSize, settings$randomEffectSd, timeGrid, "Grid random-effects"),
           eval(customRandomFxEstimate, trueEffectSize, settings$randomEffectSd, timeCustom, "Custom random-effects"),
-          eval(hermiteRandomFxEstimate, trueEffectSize, settings$randomEffectSd, timeHermite, "Hermite interpolation random-effects")
+          eval(hermiteRandomFxEstimate, trueEffectSize, settings$randomEffectSd, timeHermite, "Hermite interpolation random-effects"),
+          eval(padeRandomFxEstimate, trueEffectSize, settings$randomEffectSd, timePade, "Pade random-effects")
         )
       }
       saveRDS(result, fileName)
